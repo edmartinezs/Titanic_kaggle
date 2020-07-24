@@ -1,0 +1,356 @@
+---
+title: "Clasificacion"
+author: "UNAL"
+date: "21/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+
+train <- read.csv("train.csv")
+
+test <- read.csv("test.csv")
+
+train <- train%>%
+  select(2, 3, 5, 6, 7, 8, 10, 12)
+
+```
+
+```{r}
+train <- na.omit(train)
+```
+
+```{r}
+str(train)
+```
+
+
+```{r}
+train <- train%>%
+  mutate(Survived = as.factor(Survived),
+         Pclass = as.factor(Pclass),
+         Sex = as.factor(Sex),
+         Age = as.numeric(Age),
+         SibSp = as.numeric(SibSp),
+         Parch = as.numeric(Parch),
+         Fare = as.numeric(Fare),
+      Embarked = as.factor(Embarked)
+         )
+
+
+```
+
+# Clasificadores
+
+```{r}
+set.seed(100)
+```
+
+```{r}
+#Normalizamos los datos o escalados
+#datos_fn[, c(2:20)] <- scale(datos_fn[, c(2:20)])
+
+### Train y Test
+
+library(caTools)
+split <- sample.split(train$Survived, SplitRatio = 0.70)
+
+train_fn <- subset(train, split == TRUE)
+test_fn <- subset(train, split == FALSE)
+
+```
+
+
+
+### Modelos predictivos
+
+```{r}
+mod_glm <- glm(Survived ~ ., data = train_fn, family = "binomial")
+```
+
+
+
+```{r}
+#predict(mod_glm, type = 'response', newdata = data.frame(Age = 39, Pclass = "3", Sex="male", SibSp= 1, Parch =0, Fare=8))
+```
+
+
+
+```{r}
+pred_valid <- predict(mod_glm, type = 'response', newdata = test_fn)
+
+pred_valid <- ifelse(pred_valid > 0.5, 1, 0)
+pred_valid <- factor(pred_valid, levels = c("0", "1"), labels = c("NO", "SI"))
+
+
+matrizConfusion <- table(test_fn$Survived, pred_valid)
+matrizConfusion
+```
+
+
+```{r}
+precision_glm <- ((matrizConfusion[1]+matrizConfusion[4])*100)/214
+precision_glm
+```
+
+
+
+
+## Maquina de soporte vectorial
+
+```{r}
+library(e1071)
+clasificadorSVM <- svm(Survived ~ ., data = train_fn, 
+                       type = 'C-classification', kernel = 'radial')
+```
+
+
+
+```{r}
+pred_valid_svm <- predict(clasificadorSVM, newdata = test_fn)
+```
+
+
+```{r}
+matrizConfusion_svm <- table(test_fn$Survived, pred_valid_svm)
+matrizConfusion_svm
+
+```
+
+
+```{r}
+precision_svm <- ((matrizConfusion_svm[1]+matrizConfusion_svm[4])*100)/214
+precision_svm
+```
+
+
+
+
+
+
+## Naive Bayes
+
+```{r}
+library(e1071)
+clasificadorBayes <- naiveBayes(Survived ~ ., data = train_fn)
+```
+
+
+```{r}
+pred_valid_Bayes <- predict(clasificadorBayes, newdata = test_fn)
+```
+
+#### Matriz de confusion
+```{r}
+matrizConfusion_bayes <- table(test_fn$Survived, pred_valid_Bayes)
+matrizConfusion_bayes
+```
+
+
+### Precision de bayes
+```{r}
+precision_bayes <- ((matrizConfusion_bayes[1]+matrizConfusion_bayes[4])*100)/214
+precision_bayes
+```
+
+
+
+
+## Arbol de desision
+
+```{r}
+library(tree)
+library(rpart)
+library(rpart.plot)
+clasificadorDT <-  rpart(Survived ~ ., data = train_fn)
+```
+
+### Grafico arbol
+
+```{r}
+rpart.plot::rpart.plot(clasificadorDT, extra = 0, type = 3)
+
+```
+
+```{r}
+pred_valid_DT <- predict(clasificadorDT, newdata = test_fn, type = 'class')
+
+```
+
+### Matriz de Confusion arbol
+```{r}
+matrizConfusion_dt <- table(test_fn$Survived, pred_valid_DT)
+matrizConfusion_dt
+```
+
+# Precision de Arbol
+
+```{r}
+precision_dt <- ((matrizConfusion_dt[1]+matrizConfusion_dt[4])*100)/214
+precision_dt
+```
+
+
+
+### Red neuronal
+
+```{r}
+##dummies
+library(fastDummies)
+         
+train_nn <- train_fn  
+
+train_nn <- dummy_cols(train_nn, select_columns = c("Pclass", "Sex", "Embarked"))%>%
+  select(-c("Pclass", "Sex", "Embarked"))
+
+#Normalizamos los datos o escalados
+train_nn[, c(2, 5)] <- scale(train_nn[, c(2, 5)])
+
+#normalize <- function(x) {  return ((x - min(x)) / (max(x) - min(x)))}
+
+#train_nn[, c(2, 5)] <- as.data.frame(lapply(train_nn[, c(2, 5)], normalize))
+```
+
+```{r}
+library(neuralnet)
+red1 <- neuralnet(Survived~ ., 
+                     data = train_nn, 
+                     hidden=c(5,3),
+                     act.fct = "logistic",
+                     linear.output = FALSE
+                    
+                  )
+```
+
+```{r}
+test_nn <- test_fn  
+
+test_nn <- dummy_cols(test_nn, select_columns = c("Pclass", "Sex", "Embarked"))%>%
+  select(-c("Pclass", "Sex", "Embarked"))
+
+pred_valid_nn <- compute(red1, test_nn)
+
+```
+
+### Error de Red
+
+```{r}
+data.frame(red1$result.matrix)[1]
+```
+
+```{r, fig.height= 8, fig.width= 10}
+
+plot(red1)
+```
+
+
+### Matriz de Confusion red
+```{r}
+
+real <- as.numeric(as.character(test_nn$Survived, levels = c("0", "1"), labels = c("si", "no")))
+
+result <- data.frame(real = real, prediction = pred_valid_nn$net.result)
+result
+```
+
+```{r}
+roundedresults<-sapply(result,round,digits=0)
+roundedresultsdf=data.frame(roundedresults)
+attach(roundedresultsdf)
+matrix_nn <- table(real,prediction.1)
+matrix_nn
+```
+
+# Precision de Red neuronal
+
+```{r}
+precision_red <- ((matrix_nn[1]+matrix_nn[4])*100)/214
+precision_red
+```
+
+
+## Tabla de precisiones
+```{r}
+#ambiente <- ls()
+modelos1 <- c("mod_K-nn", "mod_svm", "mod_bayes","mod_arbol") 
+
+
+data.frame(
+  Modelo1 = modelos1,
+  Precision = round(c(precision_knn, precision_svm, precision_bayes, precision_dt), 2)
+) %>% 
+  arrange(Precision)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+### BOoxting
+
+```{r}
+train_bx1 <-train_fn
+
+
+train_bx1 <- train_bx1%>%
+  mutate(Survived = as.numeric(Survived),
+         Pclass = as.numeric(Pclass),
+         Sex = as.numeric(Sex),
+         Age = as.numeric(Age),
+         SibSp = as.numeric(SibSp),
+         Parch = as.numeric(Parch),
+         Fare = as.numeric(Fare),
+      Embarked = as.numeric(Embarked))
+
+matrix_n <- train_bx1
+
+matrix_n <- data.matrix(matrix_n)
+
+vector_survived <- c(matrix_n[, 1])
+```
+
+
+```{r}
+library(xgboost)
+
+# Using the cross validation to estimate our error rate:
+param <- list("objective" = "binary:logistic")
+
+cv.nround <- 15
+cv.nfold <- 3
+
+xgboost_cv = xgb.cv(param = param,
+                    data = matrix_n[, -c(1)],
+                    label = matrix_n[, c(1)],
+                    nfold = cv.nfold,
+                    nrounds = cv.nround)
+
+
+matrix_n[, c(1)]
+```
+
+
+
+

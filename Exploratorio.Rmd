@@ -1,0 +1,173 @@
+---
+title: "exploratorio"
+author: "UNAL"
+date: "21/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+
+train <- read.csv("train.csv")
+
+train_fn <- train%>%
+  select(2, 3, 5, 6, 7, 8, 10, 12)
+
+```
+
+```{r}
+train_fn <- na.omit(train_fn)
+```
+
+```{r}
+str(train_fn)
+```
+
+
+```{r}
+train_fn <- train_fn%>%
+  mutate(Survived = as.factor(Survived),
+         Pclass = as.factor(Pclass),
+         Sex = as.factor(Sex),
+         Age = as.numeric(Age),
+         SibSp = as.numeric(SibSp),
+         Parch = as.numeric(Parch),
+         Fare = as.numeric(Fare),
+         Embarked = as.factor(Embarked))
+```
+
+
+```{r}
+summary(train_fn)
+```
+
+
+
+```{r}
+train_fn %>% 
+  dplyr::select_if(is.numeric) %>% 
+  gather(key = "variable", value = "valor") %>% 
+  ggplot(data = ., aes(x = valor)) +
+  facet_wrap(~variable, scales = "free") +
+  geom_density()
+```
+
+
+
+```{r}
+library(corrplot)
+library(RColorBrewer)
+train_fn %>%
+  dplyr::select_if(is.numeric) %>% 
+  #dplyr::select(-c(test, au_total, ag_total, au_gravity, au_leach, ag_gravity, ag_leach)) %>% 
+  cor(method = "spearman") %>% 
+  corrplot(
+    diag = FALSE,
+    type = "upper",
+    tl.srt = 45,
+    tl.col = "black",
+    method = "pie",
+    col = brewer.pal(n = 8, name = "Spectral")
+  )
+
+```
+
+
+
+# Modelos Predictivos
+
+
+
+
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+datos_acp <- train_fn %>%
+  dplyr::select_if(is.numeric)
+ # dplyr::select(-c(test, au_total, ag_total, au_gravity, au_leach, ag_gravity, ag_leach))
+
+
+acp <- PCA(X = datos_acp, scale.unit = TRUE, ncp = ncol(datos_acp), graph = TRUE)
+```
+
+
+```{r}
+summary(acp)
+```
+
+
+
+```{r}
+train_fn$acp1 <- acp$ind$coord[, 1]
+train_fn$acp2 <- acp$ind$coord[, 2]
+train_fn$acp3 <- acp$ind$coord[, 3]
+```
+
+
+```{r, fig.width=9}
+library(ggpubr)
+ggarrange(
+  factoextra::fviz_pca_var(acp, axes = c(1, 2)),
+  
+  train_fn %>% 
+  ggplot(data = ., aes(x = acp1, y = acp2, color = train_fn$Survived)) +
+  geom_point() +
+  geom_vline(xintercept = 0, lty = 2, size = 0.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 0.3)+
+  theme(legend.position = "top"),
+  
+  ncol = 2
+)
+```
+
+
+```{r}
+ggarrange(
+  factoextra::fviz_pca_var(acp, axes = c(1, 2)),
+  
+  train_fn %>% 
+  ggplot(data = ., aes(x = acp1, y = acp3, color = train_fn$Survived)) +
+  geom_point() +
+  geom_vline(xintercept = 0, lty = 2, size = 0.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 0.3)+
+  theme(legend.position = "top"),
+  
+  ncol = 2
+)
+```
+
+```{r}
+ggarrange(
+  factoextra::fviz_pca_var(acp, axes = c(1, 2)),
+  
+  train_fn %>% 
+  ggplot(data = ., aes(x = acp2, y = acp3, color = train_fn$Survived)) +
+  geom_point() +
+  geom_vline(xintercept = 0, lty = 2, size = 0.3) +
+  geom_hline(yintercept = 0, lty = 2, size = 0.3)+
+  theme(legend.position = "top"),
+  
+  ncol = 2
+)
+```
+
+
+
+
+
+
+
+
